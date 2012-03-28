@@ -15,21 +15,29 @@ class Model_Survey extends \Orm\Model {
 
 	private $_finished = false;
 
-	//TODO this currently calls even when the section is inactive. Shift this around so the logic doesnt get called unnecessarily.
+
+	/**
+	 *
+	 *
+	 *  @param array $data
+	 *  @param bool $new
+	 * 	@param View $view
+	 *	@todo this currently calls even when the section is inactive. Shift this around so the logic doesnt get called unnecessarily.
+	 */
 	public static function forge($data = array(), $new = true, $view = null)
 	{
 		$active_section_id = null;
-		if(isset($data['active_section']))
+		if (isset($data['active_section']))
 		{
 			$active_section_id = $data['active_section'];
 			unset($data['active_section']);
 		}
-		
-		
+
+
 		$survey = parent::forge($data, $new, $view);
 		try
 		{
-			$survey->set_active_section($active_section_id ?: \Session::get('survey.'.$survey->id.'.active_section_id'));	
+			$survey->set_active_section($active_section_id ?: \Session::get('survey.'.$survey->id.'.active_section_id'));
 		}
 		catch(SurveyComplete $e)
 		{
@@ -38,20 +46,28 @@ class Model_Survey extends \Orm\Model {
 			{
 				$data['complete'](\Session::get('survey.'.$survey->id.'.responses', array()));
 			}
-			
 		}
-		
-		
-	//	$survey->_process_active_section();
+
+		//	$survey->_process_active_section();
 		return $survey;
 	}
+
 
 	//dont call this anywhere (other than in the forge above). things will go wrong.
 	/*public function _process_active_section()
 	{
 		$this->current_section = $sur
 	}*/
-	
+
+
+	/**
+	 *
+	 *
+	 * @param int $id
+	 * @return Model_Survey
+	 * @throws \UnexpectedValueException
+	 * @throws SurveyComplete	 *
+	 */
 	public function set_active_section($id)
 	{
 		try
@@ -76,7 +92,7 @@ class Model_Survey extends \Orm\Model {
 				}
 			}
 		}
-		catch(SurveyUpdated $e)
+		catch (SurveyUpdated $e)
 		{
 			$this->_active_section = Model_Section::find()
 				->where('survey_id', $this->id)
@@ -91,7 +107,6 @@ class Model_Survey extends \Orm\Model {
 			}
 
 			$this->_active_section->generate_fieldset();
-				
 		}
 		catch(SurveyBack $e)
 		{
@@ -104,18 +119,25 @@ class Model_Survey extends \Orm\Model {
 				->generate_fieldset();
 		}
 
-
-
 		\Session::set('survey.'.$this->id.'.active_section_id', $this->_active_section->id);
 		return $this;
 	}
 
+
+	/**
+	 * Alias for render, allows using the survey as a string (magic method)
+	 *
+	 * @return string
+	 */
 	public function __toString()
 	{
-		try {
+		try
+		{
 			return $this->render();
-		} catch (\Exception $e) {
-			if(\Fuel::$env == \Fuel::PRODUCTION)
+		}
+		catch (\Exception $e)
+		{
+			if (\Fuel::$env == \Fuel::PRODUCTION)
 			{
 				\Log::error('There was a problem rendering the survey');
 				return '';
@@ -124,25 +146,30 @@ class Model_Survey extends \Orm\Model {
 			{
 				\Error::show_php_error($e);
 			}
-
 		}
 	}
 
+
+	/**
+	 * Renders the survey
+	 *
+	 * @return string
+	 */
 	public function render()
 	{
-		if (!$this->_finished)
+		if ( ! $this->_finished)
 		{
 			$view = \View::forge('survey');
-		} else {
+		}
+		else
+		{
 			$view = \View::forge('complete');
 			$view->results = \Session::get('survey.'.$this->id.'.responses', array());
 		}
-		
+
 		$current_section = current($this->sections);
 		$view->survey = $this;
 		$view->set('section', $this->_active_section->render(), false);
-
-	
 
 		return $view->render();
 	}

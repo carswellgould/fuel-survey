@@ -1,7 +1,8 @@
 <?php
 namespace Survey;
 
-class Model_Question extends \Orm\Model {
+class Model_Question extends \Orm\Model
+{
 
 	protected static $_properties = array('id', 'question', 'type', 'section_id');
 
