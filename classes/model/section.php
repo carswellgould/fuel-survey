@@ -1,7 +1,8 @@
 <?php
 namespace Survey;
 
-class Model_Section extends \Orm\Model {
+class Model_Section extends \Orm\Model
+{
 
 	protected static $_properties = array('id', 'title', 'description', 'position', 'survey_id');
 
@@ -33,16 +34,25 @@ class Model_Section extends \Orm\Model {
 
 
 	/**
-	 * Generates the field set for the section
-	 * (I think more info on that would be appropriate)
+	 * Generates the fieldset for this survey section
 	 *
-	 * @return Model_Section
+	 * - Selects the correct form template to use
+	 * - Adds all the question from this section (see has_many relation) as fields
+	 * in the fieldset
+	 * - Populates these fields with possibly available answers
+	 * - Renders Back, Next|Finish buttons
+	 * - Validates any form input and stores responses in session
+	 *
+	 * See numbered steps in the method
+	 *
+	 * @return Model_Section (daisy chaining)
 	 */
 	public function generate_fieldset()
 	{
 		$fieldset = \Fieldset::forge('survey-'.$this->id, $this->_fieldset_data);
 
-		if (\Arr::get($this->_fieldset_data, 'survey_template', true))
+		// (1) Set fieldset html template (use the one below, or the fuel default)
+		if (\Arr::get($this->_fieldset_data, 'use_survey_template', true))
 		{
 			$fieldset->form()->set_config('form_template', '{open}{fields}{close}');
 
@@ -57,13 +67,15 @@ class Model_Section extends \Orm\Model {
 			);
 		}
 
-
+		// (2) Add all the questions to the fieldset
 		foreach ($this->questions as $question)
 		{
+			//fielset::add parameter structure:
 			//->add( 'name', 'Label', array( 'type' => 'select', 'options' => $options, 'value' => 'selected_values_array_key' ), array( array('required'), )
 
 			switch($question->type)
 			{
+				// TODO: add more input types(?)
 				case 'SELECT':
 				case 'RADIO':
 					$options = array();
@@ -74,33 +86,33 @@ class Model_Section extends \Orm\Model {
 					$fieldset->add('question-'.$question->id, $question->question, array(
 						'type' => strtolower($question->type),
 						'options' => $options,
-						'value' => 'h1',
-						'class' => ''
 					));
 					break;
 			}
 		}
 
-		//populate from session
+		// (3) populate fieldset with available responses from session
 		$session = \Session::get('survey.'.$this->survey_id.'.responses', array());
-		$session_values = array();
+		$session_question_responses = array();
 
-		//normalise
+		// Normalise question-value pairs for use in fieldset::populate method
 		if (isset($session[$this->id]))
 		{
 			foreach ($session[$this->id] as $question_id => $value)
 			{
-				$session_values['question-'.$question_id] = $value;
+				$session_question_responses['question-'.$question_id] = $value;
 			}
 		}
 
-		//the second param means that post data overrides what we set (in case the user updates their selection)
-		$fieldset->populate($session_values, true);
+		// The second param means that POST data overrides what we set
+		// (in case the user updates their selection)
+		$fieldset->populate($session_question_responses, true);
 
-		$sections = $this->survey->get_sections();
+		$sections = $this->survey->get_sections(); //orm overloading makes this happen
 
-		//back button
-		if (current($sections)->id != $this->id)
+		// (4) Add navigation buttons ([Back,] Next|Finish)
+		// Back button
+		if (current($sections)->id != $this->id) //we're not at the first section
 		{
 			$fieldset->add('back-'.$this->id, null, array(
 				'type' => "submit",
@@ -108,8 +120,7 @@ class Model_Section extends \Orm\Model {
 			));
 		}
 
-
-		//next button
+		// Next|Finish Button
 		$submit = (end($sections)->id == $this->id) ? 'Finish' : 'Next';
 
 		$fieldset->add('submit-'.$this->id, null, array(
@@ -119,38 +130,47 @@ class Model_Section extends \Orm\Model {
 
 		$this->_fieldset = $fieldset;
 
-		//validate - note, this runs when a different form is posted too :(
+
+		// (5) Validate the form
 		if ($fieldset->validation()->run())
 		{
+			// back button was clicked
 			if ($fieldset->validation()->validated('back-'.$this->id) and $fieldset->validation()->validated('back-'.$this->id) !== NULL)
 			{
 				throw new SurveyBack();
 			}
+			// next/finish button was clicked
 			if ($fieldset->validation()->validated('submit-'.$this->id))
 			{
+				//collect responses from form
 				$responses = array();
 				$qid = null;
 				foreach ($fieldset->field() as $key => $field)
 				{
 					//we dont need to store the submit button - save a bit of session space
-					if ($key == 'submit-'.$this->id or $key == 'back-'.$this->id)
+					if ($key != 'submit-'.$this->id and $key != 'back-'.$this->id)
 					{
-						continue;
-					}
+						$val = $fieldset->validation()->input($key);
 
-					$val = $fieldset->validation()->input($key);
-					///strips out the question- and adds the value to be stored
-					$qid = preg_replace("/[^0-9]/", "", $key);
-					$session[$this->id][$qid] = (string)$fieldset->validation()->input($key);
+						//strips out the question- and adds the value to be stored
+						$qid = preg_replace("/[^0-9]/", '', $key);
+						$session[$this->id][$qid] = (string)$fieldset->validation()->validated($key);
+					}
 				}
 				\Session::set('survey.'. $this->survey_id.'.responses', $session);
 				throw new SurveyUpdated();
 			}
 		}
+
+		// (6) Done. Support daisy-chaining
 		return $this;
 	}
 
+
 	/**
+	 * Render the fieldset
+	 *
+	 * Uses Fuels' Fieldset Build method
 	 *
 	 * @return string
 	 */

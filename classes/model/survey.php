@@ -1,9 +1,22 @@
 <?php
 namespace Survey;
 
+/**
+ * Thrown when the next button is clicked
+ *
+ */
 class SurveyUpdated extends \Fuel_Exception {};
+
+/**
+ * Thrown when the back button is clicked
+ */
 class SurveyBack extends \Fuel_Exception {};
+
+/**
+ * Thrown when the last section has been completed
+ */
 class SurveyComplete extends \Fuel_Exception {};
+
 
 class Model_Survey extends \Orm\Model {
 
@@ -33,7 +46,6 @@ class Model_Survey extends \Orm\Model {
 			unset($data['active_section']);
 		}
 
-
 		$survey = parent::forge($data, $new, $view);
 		try
 		{
@@ -41,23 +53,14 @@ class Model_Survey extends \Orm\Model {
 		}
 		catch(SurveyComplete $e)
 		{
-
 			if (isset($data['complete']) and is_function($data['complete']))
 			{
 				$data['complete'](\Session::get('survey.'.$survey->id.'.responses', array()));
 			}
 		}
 
-		//	$survey->_process_active_section();
 		return $survey;
 	}
-
-
-	//dont call this anywhere (other than in the forge above). things will go wrong.
-	/*public function _process_active_section()
-	{
-		$this->current_section = $sur
-	}*/
 
 
 	/**
@@ -66,7 +69,7 @@ class Model_Survey extends \Orm\Model {
 	 * @param int $id
 	 * @return Model_Survey
 	 * @throws \UnexpectedValueException
-	 * @throws SurveyComplete	 *
+	 * @throws SurveyComplete
 	 */
 	public function set_active_section($id)
 	{
@@ -78,19 +81,17 @@ class Model_Survey extends \Orm\Model {
 					->where('survey_id', $this->id)
 					->order_by('position', 'asc')
 					->get_one();
-
-				$this->_active_section->generate_fieldset();
 			}
 			else
 			{
 				$this->_active_section = Model_Section::find($id);
-				$this->_active_section->generate_fieldset();
 
 				if ($this->_active_section === null or $this->_active_section->survey_id !== $this->id)
 				{
 					throw new \UnexpectedValueException('We couldn\'t find the section with id ('.$id.')');
 				}
 			}
+			$this->_active_section->generate_fieldset();
 		}
 		catch (SurveyUpdated $e)
 		{
@@ -99,13 +100,11 @@ class Model_Survey extends \Orm\Model {
 				->where('position', '>', $this->_active_section->position)
 				->order_by('position', 'asc')
 				->get_one();
-
 			if ($this->_active_section === null)
 			{
 				$this->_finished = true;
 				throw new SurveyComplete;
 			}
-
 			$this->_active_section->generate_fieldset();
 		}
 		catch(SurveyBack $e)
@@ -115,8 +114,8 @@ class Model_Survey extends \Orm\Model {
 				->where('survey_id', $this->id)
 				->where('position', '<', $this->_active_section->position)
 				->order_by('position', 'desc')
-				->get_one()
-				->generate_fieldset();
+				->get_one();
+				$this->_active_section->generate_fieldset();
 		}
 
 		\Session::set('survey.'.$this->id.'.active_section_id', $this->_active_section->id);
@@ -167,7 +166,6 @@ class Model_Survey extends \Orm\Model {
 			$view->results = \Session::get('survey.'.$this->id.'.responses', array());
 		}
 
-		$current_section = current($this->sections);
 		$view->survey = $this;
 		$view->set('section', $this->_active_section->render(), false);
 
