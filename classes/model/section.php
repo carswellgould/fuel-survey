@@ -10,6 +10,40 @@ class Model_Section extends \Orm\Model
 
 	protected static $_belongs_to = array('survey');
 
+
+	/**
+	 * @var array
+	 *
+	 * Holds IDs of questions that were shown before the current request was sent,
+	 * Which basically means, the questions rendered by the previous
+	 * generate_fieldset() call.
+	 *
+	 * IDs are retrieved from session (survey.<survey_id>.questions_shown)
+	 */
+	private $_questions_shown = array();
+
+	/**
+	 * @var array
+	 *
+	 * Holds IDs of questions that are added to the fieldset, to be stored in
+	 * the session. (survey.<survey_id>.questions_shown).
+	 *
+	 * The IMPORTANT part to note is that the session key is only populate once
+	 * generate_fieldset is -done- adding questions.
+	 *
+	 * This array is added to as questions are added
+	 * as a result of generate_fieldset- more directly by _add_question.
+	 */
+	private $_questions_added = array();
+
+	/**
+	 * @var bool
+	 *
+	 * Whether or not any new subquestions were revealed for any questions in the
+	 * section. If this is set to true, SurveySubQuestionsRevealed will be thrown.
+	 */
+	private $_subquestions_revealed = false;
+
 	private $_fieldset = null;
 
 	public $_fieldset_data = array();
@@ -46,12 +80,19 @@ class Model_Section extends \Orm\Model
 	 * See numbered steps in the method
 	 *
 	 * @return Model_Section (daisy chaining)
+	 * @throws SurveyUpdated
 	 */
 	public function generate_fieldset()
 	{
-		$fieldset = \Fieldset::forge('survey-'.$this->id, $this->_fieldset_data);
+		// (1) Find out which questions were shown before
+		$this->_questions_shown = \Session::get(
+			'survey.'.$this->survey_id.'questions_shown',
+			array()
+		);
 
-		// (1) Set fieldset html template (use the one below, or the fuel default)
+
+		// (2) Set fieldset html template (use the one below, or the fuel default)
+		$fieldset = \Fieldset::forge('survey-'.$this->id, $this->_fieldset_data);
 		if (\Arr::get($this->_fieldset_data, 'use_survey_template', true))
 		{
 			$fieldset->form()->set_config('form_template', '{open}{fields}{close}');
@@ -67,31 +108,25 @@ class Model_Section extends \Orm\Model
 			);
 		}
 
-		// (2) Add all the questions to the fieldset
-		foreach ($this->questions as $question)
-		{
-			//fielset::add parameter structure:
-			//->add( 'name', 'Label', array( 'type' => 'select', 'options' => $options, 'value' => 'selected_values_array_key' ), array( array('required'), )
 
-			switch($question->type)
+		// (3) Add all the questions to the fieldset
+		// since subquestions will automatically be added by _add_question, we only
+		// want 'main' questions.
+		$questions = array_filter(
+			$this->questions,
+			function($question)
 			{
-				// TODO: add more input types(?)
-				case 'SELECT':
-				case 'RADIO':
-					$options = array();
-					foreach ($question->answers as $answer)
-					{
-						$options[$answer->value] = $answer->answer;
-					}
-					$fieldset->add('question-'.$question->id, $question->question, array(
-						'type' => strtolower($question->type),
-						'options' => $options,
-					));
-					break;
+				//only keep those with a null parent_id
+				return is_null($question->parent_id);
 			}
+		);
+
+		foreach ($questions as $question)
+		{
+			$this->_add_question($question, $fieldset);
 		}
 
-		// (3) populate fieldset with available responses from session
+		// (4) populate fieldset with available responses from session
 		$session = \Session::get('survey.'.$this->survey_id.'.responses', array());
 		$session_question_responses = array();
 
@@ -131,14 +166,22 @@ class Model_Section extends \Orm\Model
 		$this->_fieldset = $fieldset;
 
 
-		// (5) Validate the form
+		// (5) Save the questions we added in a session
+		\Session::set(
+			'survey.'.$this->survey_id.'questions_shown',
+			$this->_questions_added
+		);
+
+
+		// (6) Validate the form
 		if ($fieldset->validation()->run())
 		{
 			// back button was clicked
-			if ($fieldset->validation()->validated('back-'.$this->id) and $fieldset->validation()->validated('back-'.$this->id) !== NULL)
+			if ($fieldset->validation()->validated('back-'.$this->id) and $fieldset->validation()->validated('back-'.$this->id) !== null)
 			{
 				throw new SurveyBack();
 			}
+
 			// next/finish button was clicked
 			if ($fieldset->validation()->validated('submit-'.$this->id))
 			{
@@ -158,12 +201,146 @@ class Model_Section extends \Orm\Model
 					}
 				}
 				\Session::set('survey.'. $this->survey_id.'.responses', $session);
+				if($this->_subquestions_revealed)
+				{ //worst case: store the [revealed] status of subquestion in a session
+					throw new SurveySubQuestionsRevealed();
+				}
 				throw new SurveyUpdated();
 			}
 		}
 
-		// (6) Done. Support daisy-chaining
+
+		// (7) Done. Support daisy-chaining
 		return $this;
+	}
+
+
+	/**
+	 * Adds a question to the given fieldset
+	 *
+	 * @param Model_Question $question
+	 * @param \Fieldset $fieldset
+	 * @return Model_Section (daisy-chaining)
+	 */
+	private function _add_question(Model_Question $question, \Fieldset $fieldset)
+	{
+		//fielset::add parameter structure:
+		//->add( 'name', 'Label', array( 'type' => 'select', 'options' => $options, 'value' => 'selected_values_array_key' ), array( array('required'), )
+
+		switch($question->type)
+		{
+			// TODO: add more input types(?)
+			case 'SELECT':
+			case 'RADIO':
+				$options = array();
+				foreach ($question->answers as $answer)
+				{
+					$options[$answer->value] = $answer->answer;
+				}
+				$fieldset->add('question-'.$question->id, $question->question, array(
+					'type' => strtolower($question->type),
+					'options' => $options,
+				));
+				break;
+		}
+
+		// Add any subquestions this question might have
+		// _add_subquestions does the logic to determine whether or not add them
+		$this->_add_subquestions($question, $fieldset);
+
+		//remember the IDs of the fields added
+		$this->_questions_added[] = $question->id;
+
+		return $this;
+	}
+
+
+	/**
+	 * Checks whether a given question has any subquestions that need displaying
+	 *
+	 * This first checks whether the question has been answered, then checks
+	 * whether there are any subquestions, particularly for the chosen answer.
+	 *
+	 * If such subquestions are found, add them to the fieldset, and fill in their
+	 * answers, if available.
+	 *
+	 * Also clear any answers to subquestions that no longer apply
+	 *
+	 * @param Model_Question $question
+	 * @param Fieldset $fieldset
+	 * @return Model_Survey (daisy-chaining)
+	 */
+	private function _add_subquestions(Model_Question $question, \Fieldset $fieldset)
+	{
+		$parent_value = $this->_get_question_answer($question, $fieldset);
+
+		if ( ! is_null($parent_value))
+		{
+			if (count($question->subquestions) > 0)
+			{
+				foreach ($question->subquestions as $subquestion)
+				{
+					if($parent_value == $subquestion->parent_value)
+					{
+						$this->_add_question($subquestion, $fieldset);
+						if ( ! in_array($subquestion->id, $this->_questions_shown))
+						{ //this would mean that we're showing a subquestion that was not shown before
+							$this->_subquestions_revealed = true;
+						}
+					}
+					else
+					{
+						//Clear answers for irrelevant subquestion, if any
+						$session = \Session::get('survey.'.$this->survey_id.'.responses', array());
+						if (isset($session[$this->id]) and isset($session[$this->id][$subquestion->id]))
+						{
+							unset($session[$this->id][$subquestion->id]);
+							\Session::delete('survey.'.$this->survey_id.'.responses.'.$this->id.'.'.$subquestion->id);
+						}
+					}
+				}
+			}
+		}
+
+		return $this;
+	}
+
+
+	/**
+	 * Given a question and a fieldset, figures out whether a question has been
+	 * answered and returns that answer.
+	 *
+	 * This will first check the session for the question's answer value, then
+	 * check POST and possibly override it.
+	 *
+	 * @param Model_Question $question
+	 * @param \Fieldset @fieldset
+	 * @return string|null
+	 *
+	 * @todo Look into whether or not values should be grabbed from POST rather
+		 than validation, mostly for repopulating. Besides, validation is ran later
+		 anyway.
+	 */
+	private function _get_question_answer(Model_Question $question, \Fieldset $fieldset)
+	{
+		$question_value = null;
+
+		$session = \Session::get('survey.'.$this->survey_id.'.responses', array());
+
+		if (isset($session[$this->id]) and isset($session[$this->id][$question->id]))
+		{
+			$question_value = $session[$this->id][$question->id];
+		}
+
+		if ($fieldset->validation()->run())
+		{
+			if (trim($fieldset->validation()->validated('question-' . $question->id)) != '')
+			{
+				$question_value = (string)$fieldset->validation()->validated('question-' . $question->id);
+			}
+
+		}
+		return $question_value;
 	}
 
 

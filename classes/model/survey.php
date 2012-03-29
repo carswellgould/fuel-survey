@@ -7,6 +7,8 @@ namespace Survey;
  */
 class SurveyUpdated extends \Fuel_Exception {};
 
+class SurveySubQuestionsRevealed extends \Fuel_Exception {};
+
 /**
  * Thrown when the back button is clicked
  */
@@ -81,17 +83,18 @@ class Model_Survey extends \Orm\Model {
 					->where('survey_id', $this->id)
 					->order_by('position', 'asc')
 					->get_one();
+				$this->_active_section->generate_fieldset();
 			}
 			else
 			{
 				$this->_active_section = Model_Section::find($id);
-
+				$this->_active_section->generate_fieldset();
 				if ($this->_active_section === null or $this->_active_section->survey_id !== $this->id)
 				{
 					throw new \UnexpectedValueException('We couldn\'t find the section with id ('.$id.')');
 				}
 			}
-			$this->_active_section->generate_fieldset();
+
 		}
 		catch (SurveyUpdated $e)
 		{
@@ -106,6 +109,10 @@ class Model_Survey extends \Orm\Model {
 				throw new SurveyComplete;
 			}
 			$this->_active_section->generate_fieldset();
+		}
+		catch (SurveySubQuestionsRevealed $e)
+		{
+			//don't do anything in particular
 		}
 		catch(SurveyBack $e)
 		{
