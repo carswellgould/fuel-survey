@@ -165,16 +165,17 @@ class Model_Survey extends \Orm\Model {
 	{
 		if ( ! $this->_finished)
 		{
-			$view = \View::forge('survey');
+			$view = \View::forge('survey/survey');
+			$view->set('section', $this->_active_section->render(), false);
 		}
 		else
 		{
-			$view = \View::forge('complete');
+			$view = \View::forge('survey/complete');
 			$view->results = \Session::get('survey.'.$this->id.'.responses', array());
 		}
 
 		$view->survey = $this;
-		$view->set('section', $this->_active_section->render(), false);
+
 
 		return $view->render();
 	}
