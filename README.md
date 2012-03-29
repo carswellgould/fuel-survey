@@ -35,6 +35,7 @@ Fork and pull request any useful changes you make.
 
 # Todo
 
+* Progress bar functions/option
 * More customisation of text/templates
 * Add default CSS styles
 * Add (optional) JS to help with UX
