@@ -84,6 +84,10 @@ class Model_Section extends \Orm\Model
 	 */
 	public function generate_fieldset()
 	{
+		//(0) start a fieldset
+		$fieldset = \Fieldset::forge('survey-'.$this->id, $this->_fieldset_data);
+
+
 		// (1) Find out which questions were shown before
 		$this->_questions_shown = \Session::get(
 			'survey.'.$this->survey_id.'questions_shown',
@@ -91,42 +95,21 @@ class Model_Section extends \Orm\Model
 		);
 
 
-		// (2) Set fieldset html template (use the one below, or the fuel default)
-		$fieldset = \Fieldset::forge('survey-'.$this->id, $this->_fieldset_data);
-		if (\Arr::get($this->_fieldset_data, 'use_survey_template', true))
-		{
-			$fieldset->form()->set_config('form_template', '{open}{fields}{close}');
-
-			$fieldset->form()->set_config(
-				'multi_field_template',
-				"<div class=\"question\"><div class=\"{error_class} question-title\">{group_label}{required}</div><div class=\"{error_class} answer\">{fields}<div class=\"survey-input\">{field} {label}</div>{fields}{error_msg}</div></div>\n"
-			);
-
-			$fieldset->form()->set_config(
-				'field_template',
-				"\t\t<div class=\"question\">\n\t\t\t<div class=\"{error_class} question-title\">{label}{required}</div>\n\t\t\t<div class=\"{error_class} answer\"><div class=\"survey-input\">{field}</div> {error_msg}</div>\n\t\t</div>\n"
-			);
-		}
-
-
-		// (3) Add all the questions to the fieldset
+		// (2) Add all the questions to the fieldset
 		// since subquestions will automatically be added by _add_question, we only
 		// want 'main' questions.
-		$questions = array_filter(
-			$this->questions,
-			function($question)
-			{
-				//only keep those with a null parent_id
-				return is_null($question->parent_id);
-			}
-		);
+		$questions = array_filter($this->questions, function($question) {
+			//only keep those with a null parent_id
+			return is_null($question->parent_id);
+		});
 
 		foreach ($questions as $question)
 		{
 			$this->_add_question($question, $fieldset);
 		}
 
-		// (4) populate fieldset with available responses from session
+
+		// (3) populate fieldset with available responses from session
 		$session = \Session::get('survey.'.$this->survey_id.'.responses', array());
 		$session_question_responses = array();
 
@@ -145,68 +128,90 @@ class Model_Section extends \Orm\Model
 
 		$sections = $this->survey->get_sections(); //orm overloading makes this happen
 
-		// (4) Add navigation buttons ([Back,] Next|Finish)
+
+		// (4) Add navigation (submit) buttons ([Back,] Next|Finish)
+		// submit_container is mixed into the fieldset template in (5)
+		$submit_container = '<div class="submit">{back}{next}</div>';
+
 		// Back button
-		if (current($sections)->id != $this->id) //we're not at the first section
-		{
-			$fieldset->add('back-'.$this->id, null, array(
-				'type' => "submit",
-				'value' => 'Back',
-			));
-		}
+		//only generate a back button if we're not on the first section
+		$back = (current($sections)->id != $this->id)
+			? \Form::submit('back-'.$this->id, 'Back')
+			: '';
 
 		// Next|Finish Button
-		$submit = (end($sections)->id == $this->id) ? 'Finish' : 'Next';
+		$next = \Form::submit(
+			'submit-'.$this->id,
+			//determine whether it should say finish or next
+			(end($sections)->id == $this->id) ? 'Finish' : 'Next'
+		);
 
-		$fieldset->add('submit-'.$this->id, null, array(
-			'type' => "submit",
-			'value' => $submit,
-		));
+		$submit_container = str_replace(
+			array('{back}', '{next}'),
+			array($back, $next),
+			$submit_container
+		);
+
+
+
+		// (5) Set fieldset html template (use the one below, or the fuel default)
+		if (\Arr::get($this->_fieldset_data, 'use_survey_template', true))
+		{
+			$fieldset->form()->set_config('form_template', '{open}{fields}'.$submit_container.'{close}');
+
+			$fieldset->form()->set_config(
+				'multi_field_template',
+				"<div class=\"question\"><div class=\"{error_class} question-title\">{group_label}{required}</div><div class=\"{error_class} answer\">{fields}<div class=\"survey-input\">{field} {label}</div>{fields}{error_msg}</div></div>\n"
+			);
+
+			$fieldset->form()->set_config(
+				'field_template',
+				"\t\t<div class=\"question\">\n\t\t\t<div class=\"{error_class} question-title\">{label}{required}</div>\n\t\t\t<div class=\"{error_class} answer\"><div class=\"survey-input\">{field}</div> {error_msg}</div>\n\t\t</div>\n"
+			);
+		}
+
 
 		$this->_fieldset = $fieldset;
 
 
-		// (5) Save the questions we added in a session
+		// (6) Save the questions we added in a session
 		\Session::set(
 			'survey.'.$this->survey_id.'questions_shown',
 			$this->_questions_added
 		);
 
 
-		// (6) Validate the form
-		if ($fieldset->validation()->run())
+		// (7) Validate the form
+
+		if(\Input::post('back-'.$this->id))
+		{ //Back button clicked
+			throw new SurveyBack;
+		}
+
+		if (\Input::post('submit-'.$this->id) and $fieldset->validation()->run())
 		{
-			// back button was clicked
-			if ($fieldset->validation()->validated('back-'.$this->id) and $fieldset->validation()->validated('back-'.$this->id) !== null)
-			{
-				throw new SurveyBack();
-			}
-
 			// next/finish button was clicked
-			if ($fieldset->validation()->validated('submit-'.$this->id))
+			// collect responses from form
+			$responses = array();
+			$qid = null;
+			foreach ($fieldset->field() as $key => $field)
 			{
-				//collect responses from form
-				$responses = array();
-				$qid = null;
-				foreach ($fieldset->field() as $key => $field)
+				//we dont need to store the submit button - save a bit of session space
+				if ($key != 'submit-'.$this->id and $key != 'back-'.$this->id)
 				{
-					//we dont need to store the submit button - save a bit of session space
-					if ($key != 'submit-'.$this->id and $key != 'back-'.$this->id)
-					{
-						$val = $fieldset->validation()->input($key);
+					$val = $fieldset->validation()->input($key);
 
-						//strips out the question- and adds the value to be stored
-						$qid = preg_replace("/[^0-9]/", '', $key);
-						$session[$this->id][$qid] = (string)$fieldset->validation()->validated($key);
-					}
+					//strips out the question- and adds the value to be stored
+					$qid = preg_replace("/[^0-9]/", '', $key);
+					$session[$this->id][$qid] = (string)$fieldset->validation()->validated($key);
 				}
-				\Session::set('survey.'. $this->survey_id.'.responses', $session);
-				if($this->_subquestions_revealed)
-				{ //worst case: store the [revealed] status of subquestion in a session
-					throw new SurveySubQuestionsRevealed();
-				}
-				throw new SurveyUpdated();
 			}
+			\Session::set('survey.'. $this->survey_id.'.responses', $session);
+			if($this->_subquestions_revealed)
+			{
+				throw new SurveySubQuestionsRevealed();
+			}
+			throw new SurveyUpdated();
 		}
 
 
@@ -245,7 +250,7 @@ class Model_Section extends \Orm\Model
 		}
 
 		// Add any subquestions this question might have
-		// _add_subquestions does the logic to determine whether or not add them
+		// _add_subquestions does the logic to determine whether or not add them.
 		$this->_add_subquestions($question, $fieldset);
 
 		//remember the IDs of the fields added
@@ -267,7 +272,7 @@ class Model_Section extends \Orm\Model
 	 * Also clear any answers to subquestions that no longer apply
 	 *
 	 * @param Model_Question $question
-	 * @param Fieldset $fieldset
+	 * @param \Fieldset $fieldset
 	 * @return Model_Survey (daisy-chaining)
 	 */
 	private function _add_subquestions(Model_Question $question, \Fieldset $fieldset)
@@ -317,14 +322,10 @@ class Model_Section extends \Orm\Model
 	 * @param \Fieldset @fieldset
 	 * @return string|null
 	 *
-	 * @todo Look into whether or not values should be grabbed from POST rather
-		 than validation, mostly for repopulating. Besides, validation is ran later
-		 anyway.
 	 */
 	private function _get_question_answer(Model_Question $question, \Fieldset $fieldset)
 	{
 		$question_value = null;
-
 		$session = \Session::get('survey.'.$this->survey_id.'.responses', array());
 
 		if (isset($session[$this->id]) and isset($session[$this->id][$question->id]))
@@ -332,13 +333,13 @@ class Model_Section extends \Orm\Model
 			$question_value = $session[$this->id][$question->id];
 		}
 
+
 		if ($fieldset->validation()->run())
 		{
 			if (trim($fieldset->validation()->validated('question-' . $question->id)) != '')
 			{
 				$question_value = (string)$fieldset->validation()->validated('question-' . $question->id);
 			}
-
 		}
 		return $question_value;
 	}
@@ -347,7 +348,7 @@ class Model_Section extends \Orm\Model
 	/**
 	 * Render the fieldset
 	 *
-	 * Uses Fuels' Fieldset Build method
+	 * Uses Fuels' \Fieldset Build method
 	 *
 	 * @return string
 	 */
