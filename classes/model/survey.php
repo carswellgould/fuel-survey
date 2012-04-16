@@ -30,6 +30,7 @@ class Model_Survey extends \Orm\Model {
 
 	private $_finished = false;
 
+	private $_on_complete = "not set";
 
 	/**
 	 *
@@ -55,16 +56,35 @@ class Model_Survey extends \Orm\Model {
 		}
 		catch(SurveyComplete $e)
 		{
-			if (isset($data['complete']) and is_function($data['complete']))
-			{
-				$data['complete'](\Session::get('survey.'.$survey->id.'.responses', array()));
-			}
+			//$survey->complete(\Session::get('survey.'.$survey->id.'.responses', array()));
 		}
 
 		return $survey;
 	}
 
+	public static function generate($id, $on_complete)
+	{
+		
+		$survey = Model_Survey::find($id);
+		
+		if ($survey->is_complete())
+		{
+			$on_complete(array());
+		}
+		return $survey;
 
+	}
+
+	public function is_complete()
+	{
+		return $this->_finished;
+	}
+
+	public function complete($results)
+	{
+
+	}
+	
 	/**
 	 *
 	 *
@@ -127,6 +147,11 @@ class Model_Survey extends \Orm\Model {
 
 		\Session::set('survey.'.$this->id.'.active_section_id', $this->_active_section->id);
 		return $this;
+	}
+
+	public function get_responses()
+	{
+		return \Session::get('survey.'.$this->id.'.responses', array());
 	}
 
 
