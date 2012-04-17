@@ -46,7 +46,7 @@ class Model_Section extends \Orm\Model
 
 	private $_fieldset = null;
 
-	public $_fieldset_data = array();
+	public $_fieldset_options = array();
 
 
 	/**
@@ -58,11 +58,11 @@ class Model_Section extends \Orm\Model
 	 */
 	public static function forge($data = array(), $new = true, $view = null)
 	{
-		$fieldset_data = \Arr::get($data, 'fieldset', array());
+		$_fieldset_options = \Arr::get($data, 'fieldset', array());
 		unset($data['fieldset']);
 
 		$section = parent::forge($data, $new, $view);
-		$section->_fieldset_data = $fieldset_data;
+		$section->_fieldset_options = $_fieldset_options;
 		return $section;
 	}
 
@@ -85,7 +85,7 @@ class Model_Section extends \Orm\Model
 	public function generate_fieldset()
 	{
 		//(0) start a fieldset
-		$fieldset = \Fieldset::forge('survey-'.$this->id, $this->_fieldset_data);
+		$fieldset = \Fieldset::forge('survey-'.$this->id, $this->_fieldset_options);
 
 
 		// (1) Find out which questions were shown before
@@ -98,6 +98,7 @@ class Model_Section extends \Orm\Model
 		// (2) Add all the questions to the fieldset
 		// since subquestions will automatically be added by _add_question, we only
 		// want 'main' questions.
+
 		$questions = array_filter($this->questions, function($question) {
 			//only keep those with a null parent_id
 			return is_null($question->parent_id);
@@ -107,7 +108,6 @@ class Model_Section extends \Orm\Model
 		{
 			$this->_add_question($question, $fieldset);
 		}
-
 
 		// (3) populate fieldset with available responses from session
 		$session = \Session::get('survey.'.$this->survey_id.'.responses', array());
@@ -154,8 +154,8 @@ class Model_Section extends \Orm\Model
 
 
 
-		// (5) Set fieldset html template (use the one below, or the fuel default)
-		if (\Arr::get($this->_fieldset_data, 'use_survey_template', true))
+		// (5) Set fieldset html template (use the one below, the user's custom or the fuel default)
+		if (\Arr::get($this->_fieldset_options, 'use_survey_template', true))
 		{
 			$fieldset->form()->set_config('form_template', '{open}{fields}'.$submit_container.'{close}');
 
@@ -167,6 +167,30 @@ class Model_Section extends \Orm\Model
 			$fieldset->form()->set_config(
 				'field_template',
 				"\t\t<div class=\"question\">\n\t\t\t<div class=\"{error_class} question-title\">{label}{required}</div>\n\t\t\t<div class=\"{error_class} answer\"><div class=\"survey-input\">{field}</div> {error_msg}</div>\n\t\t</div>\n"
+			);
+		}
+
+		if (\Arr::get($this->_fieldset_options, 'form_template', false))
+		{
+			$fieldset->form()->set_config(
+				'form_template',
+				\Arr::get($this->_fieldset_options, 'form_template', false)
+			);
+		}
+
+		if (\Arr::get($this->_fieldset_options, 'multi_field_template', false))
+		{
+			$fieldset->form()->set_config(
+				'multi_field_template',
+				\Arr::get($this->_fieldset_options, 'multi_field_template', false)
+			);
+		}
+
+		if (\Arr::get($this->_fieldset_options, 'field_template', false))
+		{
+			$fieldset->form()->set_config(
+				'field_template',
+				\Arr::get($this->_fieldset_options, 'field_template', false)
 			);
 		}
 
@@ -342,6 +366,11 @@ class Model_Section extends \Orm\Model
 			}
 		}
 		return $question_value;
+	}
+
+	public function set_fieldset_options(array $options)
+	{
+		$this->_fieldset_options += $options;
 	}
 
 

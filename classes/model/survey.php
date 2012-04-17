@@ -32,6 +32,8 @@ class Model_Survey extends \Orm\Model {
 
 	private $_on_complete = "not set";
 
+	private $_fieldset_settings = array();
+
 	/**
 	 *
 	 *
@@ -103,16 +105,17 @@ class Model_Survey extends \Orm\Model {
 					->where('survey_id', $this->id)
 					->order_by('position', 'asc')
 					->get_one();
-				$this->_active_section->generate_fieldset();
 			}
 			else
 			{
 				$this->_active_section = Model_Section::find($id);
-				$this->_active_section->generate_fieldset();
-				if ($this->_active_section === null or $this->_active_section->survey_id !== $this->id)
-				{
-					throw new \UnexpectedValueException('We couldn\'t find the section with id ('.$id.')');
-				}
+			}
+
+			$this->_active_section->generate_fieldset();
+
+			if ($this->_active_section === null or $this->_active_section->survey_id !== $this->id)
+			{
+				throw new \UnexpectedValueException('We couldn\'t find the section with id ('.$id.')');
 			}
 
 		}
@@ -180,6 +183,27 @@ class Model_Survey extends \Orm\Model {
 		}
 	}
 
+	public function get_progress () {
+		$all = \DB::select('id', 'position')
+					->from('sections')
+					->where('survey_id', $this->id)
+					->order_by('position', 'asc')
+					->as_assoc()
+					->execute()
+					->as_array();
+
+		$before = 0;
+		foreach ($all as $section) {
+			if ($section['id'] == $this->_active_section->id)
+			{
+				break;
+			}
+			++$before;
+		}
+		
+		return round((100 / sizeof($all)) * $before);
+	}
+
 
 	/**
 	 * Renders the survey
@@ -191,6 +215,7 @@ class Model_Survey extends \Orm\Model {
 		if ( ! $this->_finished)
 		{
 			$view = \View::forge('survey/survey');
+			$view->section_title = $this->_active_section->title;
 			$view->set('section', $this->_active_section->render(), false);
 		}
 		else
