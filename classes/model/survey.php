@@ -101,15 +101,21 @@ class Model_Survey extends \Orm\Model {
 		{
 			if ($id === 0 or $id === null)
 			{
-				$this->_active_section = Model_Section::find()
-					->where('survey_id', $this->id)
-					->order_by('position', 'asc')
-					->get_one();
+				$query = Model_Section::find()
+					->where('survey_id', $this->id);
 			}
 			else
 			{
-				$this->_active_section = Model_Section::find($id);
+				$query = Model_Section::find()->where('id', $id);
 			}
+
+			$this->_active_section = $query->order_by('position', 'asc')
+										//TODO probably needs a question position field but this will do for now
+										->order_by('questions.id', 'asc')
+										->order_by('questions.answers.value', 'asc')
+										->related('questions')
+										->related('questions.answers')
+										->get_one();
 
 			$this->_active_section->generate_fieldset();
 
