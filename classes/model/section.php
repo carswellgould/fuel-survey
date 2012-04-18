@@ -309,6 +309,10 @@ class Model_Section extends \Orm\Model
 			{
 				foreach ($question->subquestions as $subquestion)
 				{
+					if ($subquestion->section_id != $this->id)
+					{
+						continue;
+					}
 					if($parent_value == $subquestion->parent_value)
 					{
 						$this->_add_question($subquestion, $fieldset);

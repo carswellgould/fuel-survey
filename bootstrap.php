@@ -19,6 +19,7 @@ Autoloader::add_classes(array(
 	'Survey\\Model_Question'	=> __DIR__.'/classes/model/question.php',
 	'Survey\\Model_Answer'		=> __DIR__.'/classes/model/answer.php',
 	'Survey\\Model_Response'	=> __DIR__.'/classes/model/response.php',
+	'Survey\\Controller_Api_Survey'	=> __DIR__.'/classes/controller/api/survey.php',
 ));
 
 
