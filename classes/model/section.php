@@ -161,7 +161,7 @@ class Model_Section extends \Orm\Model
 
 			$fieldset->form()->set_config(
 				'multi_field_template',
-				"<div class=\"question\"><div class=\"{error_class} question-title\">{group_label}{required}</div><div class=\"{error_class} answer\">{fields}<div class=\"survey-input\">{field} {label}</div>{fields}{error_msg}</div></div>\n"
+				"<div class=\"question\"><div class=\"{error_class} question-title\">{group_label}{required}</div><div class=\"{error_class} answer\">{fields}<div class=\"survey-input\">{label} {field} </div>{fields}{error_msg}</div></div>\n"
 			);
 
 			$fieldset->form()->set_config(
