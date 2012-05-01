@@ -1,4 +1,4 @@
-<?php 
+<?php
 namespace Survey;
 
 class Controller_Api_Survey extends \Controller_Rest {
@@ -15,7 +15,7 @@ class Controller_Api_Survey extends \Controller_Rest {
 
 		$out = array();
 
-		foreach ($questions as $question) 
+		foreach ($questions as $question)
 		{
 			$answers = array();
 
@@ -29,6 +29,7 @@ class Controller_Api_Survey extends \Controller_Rest {
 			$out[] = array(
 				'id' => $question->id,
 				'question' => $question->question,
+				'type' => $question->type,
 				'answers' => $answers
 			);
 		}
