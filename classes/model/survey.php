@@ -66,9 +66,9 @@ class Model_Survey extends \Orm\Model {
 
 	public static function generate($id, $on_complete)
 	{
-		
+
 		$survey = Model_Survey::find($id);
-		
+
 		if ($survey->is_complete())
 		{
 			$on_complete(array());
@@ -86,7 +86,7 @@ class Model_Survey extends \Orm\Model {
 	{
 
 	}
-	
+
 	/**
 	 *
 	 *
@@ -206,7 +206,7 @@ class Model_Survey extends \Orm\Model {
 			}
 			++$before;
 		}
-		
+
 		return round((100 / sizeof($all)) * $before);
 	}
 
@@ -222,6 +222,7 @@ class Model_Survey extends \Orm\Model {
 		{
 			$view = \View::forge('survey/survey');
 			$view->section_title = $this->_active_section->title;
+			$view->section_id = $this->_active_section->id;
 			$view->set('section', $this->_active_section->render(), false);
 		}
 		else

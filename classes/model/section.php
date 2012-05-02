@@ -15,7 +15,7 @@ class Model_Section extends \Orm\Model
 	 * @var array
 	 *
 	 * Holds IDs of questions that were shown before the current request was sent,
-	 * Which basically means, the questions rendered by the previous
+	 * Which basically means, the questions renderde by the previous
 	 * generate_fieldset() call.
 	 *
 	 * IDs are retrieved from session (survey.<survey_id>.questions_shown)
@@ -43,6 +43,8 @@ class Model_Section extends \Orm\Model
 	 * section. If this is set to true, SurveySubQuestionsRevealed will be thrown.
 	 */
 	private $_subquestions_revealed = false;
+
+
 
 	private $_fieldset = null;
 
@@ -90,9 +92,11 @@ class Model_Section extends \Orm\Model
 
 		// (1) Find out which questions were shown before
 		$this->_questions_shown = \Session::get(
-			'survey.'.$this->survey_id.'questions_shown',
+			'survey.'.$this->survey_id.'.questions_shown',
 			array()
 		);
+
+		\Log::info('gen_fieldset:' . str_replace("\n", " ", var_export($this->_questions_shown, true)));
 
 
 		// (2) Add all the questions to the fieldset
@@ -200,7 +204,7 @@ class Model_Section extends \Orm\Model
 
 		// (6) Save the questions we added in a session
 		\Session::set(
-			'survey.'.$this->survey_id.'questions_shown',
+			'survey.'.$this->survey_id.'.questions_shown',
 			$this->_questions_added
 		);
 

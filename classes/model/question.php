@@ -23,7 +23,24 @@ class Model_Question extends \Orm\Model
 			),
 	);
 
-
-
 	public $value = null;
+
+	/**
+	 * Finds the survey this question is a part of and returns it
+	 */
+	public function get_survey_id()
+	{
+		$id = \DB::query('
+			SELECT sections.survey_id
+			FROM
+				questions INNER JOIN sections
+				ON (questions.section_id=sections.id)
+			WHERE questions.id=' . \DB::escape($this->id)
+		)->execute()->as_array();
+		$id = current($id);
+		$id = (int)$id['survey_id'];
+
+		return $id;
+
+	}
 }
