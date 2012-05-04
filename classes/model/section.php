@@ -266,7 +266,8 @@ class Model_Section extends \Orm\Model
 			case 'SELECT':
 			case 'RADIO':
 				$options = array();
-				foreach ($question->answers as $answer)
+				$answers = self::_sort_answers_by_id($question->answers);
+				foreach ($answers as $answer)
 				{
 					$options[$answer->value] = $answer->answer;
 				}
@@ -392,5 +393,21 @@ class Model_Section extends \Orm\Model
 	public function render ()
 	{
 		return $this->_fieldset->build();
+	}
+
+
+	private static function _sort_answers_by_id($answers)
+	{ //yay hacky.
+		$sorted_answers = $answers;
+		$sortanswers = function ($a, $b)
+		{
+			if ($a->id == $b->id)
+			{
+				return 0;
+			}
+			return ($a->id < $b->id) ? -1 : 1;
+		};
+		usort($sorted_answers, $sortanswers);
+		return $sorted_answers;
 	}
 }

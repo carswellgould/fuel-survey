@@ -15,7 +15,11 @@ class Model_Question extends \Orm\Model
 	);
 
 	protected static $_has_many = array(
-			'answers',
+			'answers' => array(
+					'conditions' => array(
+							'order_by' => array('id' => 'asc')
+					),
+			),
 			'subquestions' => array(
 					'key_from' => 'id',
 					'model_to' => 'Survey\\Model_Question',

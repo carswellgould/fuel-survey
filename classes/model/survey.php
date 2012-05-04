@@ -112,7 +112,7 @@ class Model_Survey extends \Orm\Model {
 			$this->_active_section = $query->order_by('position', 'asc')
 										//TODO probably needs a question position field but this will do for now
 										->order_by('questions.id', 'asc')
-										->order_by('questions.answers.value', 'asc')
+										//->order_by('questions.answers.value', 'asc')
 										->related('questions')
 										->related('questions.answers')
 										->get_one();
