@@ -227,7 +227,7 @@ class Model_Survey extends \Orm\Model {
 		}
 		else
 		{
-			$view = \View::forge('survey/complete');
+			$view = \ViewModel::forge('survey/complete');
 			$view->results = \Session::get('survey.'.$this->id.'.responses', array());
 		}
 
