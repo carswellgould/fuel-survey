@@ -271,7 +271,8 @@ class Model_Section extends \Orm\Model
 				{
 					$options[$answer->value] = $answer->answer;
 				}
-				$fieldset->add('question-'.$question->id, $question->question, array(
+				$question_filtered = self::_filter_question($question->question);
+				$fieldset->add('question-'.$question->id, $question_filtered, array(
 					'type' => strtolower($question->type),
 					'options' => $options,
 				));
@@ -286,6 +287,38 @@ class Model_Section extends \Orm\Model
 		$this->_questions_added[] = $question->id;
 
 		return $this;
+	}
+
+	private static function _filter_question($question)
+	{
+		if(\Session::get('survey.1.active_section_id', null) !== null)
+		{
+			if(\Session::get('survey.use_you'))
+			{
+				$out_question = str_replace("your/their", "your", $question);
+				$out_question = str_replace("you/them", "you", $out_question);
+				$out_question = str_replace("you/they", "you", $out_question);
+				$out_question = str_replace("yourself/themselves", "yourself", $out_question);
+				$out_question = str_replace("their/your", "their", $out_question);
+				$out_question = str_replace("them/you", "them", $out_question);
+				$out_question = str_replace("they/you", "they", $out_question);
+				$out_question = str_replace("themselves/yourself", "themselves", $out_question);
+			}
+			else
+			{
+				$out_question = str_replace("your/their", "their", $question);
+				$out_question = str_replace("you/them", "them", $out_question);
+				$out_question = str_replace("you/they", "they", $out_question);
+				$out_question = str_replace("yourself/themselves", "themselves", $out_question);
+				$out_question = str_replace("their/you", "you", $out_question);
+				$out_question = str_replace("them/you", "you", $out_question);
+				$out_question = str_replace("they/you", "you", $out_question);
+				$out_question = str_replace("themselves/yourself", "yourself", $out_question);
+			}
+			return $out_question;
+		}
+		return $question;
+
 	}
 
 
